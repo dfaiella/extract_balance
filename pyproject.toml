@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "extract-account-balance"
+version = "0.1.0"
+description = "A small utility for extracting account balances from PDF statements."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "pypdf>=4.0",
+    "PySide6>=6.6",
+    "pymupdf>=1.24",
+    "matplotlib>=3.11.1",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "pyinstaller>=6.0"]
+
+[project.scripts]
+extract-account-balance = "extract_account_balance.app:main"
+account-balance-viewer = "extract_account_balance.app:main"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
