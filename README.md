@@ -17,6 +17,8 @@ For macOS setup and first-run instructions, see [docs/mac-setup.md](docs/mac-set
 
 ## Development
 
+If you push this repository to GitHub for the first time, Git may open a credential prompt. Leave that popup available and complete the sign-in so the push can proceed.
+
 Install dependencies with uv:
 
 ```bash
@@ -62,5 +64,8 @@ uv run account-balance-viewer
 Build a standalone executable:
 
 ```bash
-uv run pyinstaller --onefile --name account-balance-viewer --distpath dist --workpath build --specpath build src/extract_account_balance/__main__.py
+./build.sh       # macOS/Linux
+# .\build.ps1    # Windows PowerShell
 ```
+
+On macOS, double-click `build-and-install-macos.command` to build, install, and open the latest app without setting up a PATH. See [the macOS build and distribution notes](docs/mac-setup.md#3-build-and-install-the-app-recommended). The executable must be built on macOS; standard desktop distribution uses a signed and notarized `.app` bundle, typically in a DMG.
