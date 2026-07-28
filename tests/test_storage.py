@@ -53,3 +53,15 @@ def test_upsert_statement_updates_existing_entry_for_same_statement():
     assert len(history) == 1
     assert len(history[0]["records"]) == 1
     assert history[0]["records"][0]["date"] == "2024-01-01"
+
+
+def test_upsert_statement_persists_the_inferred_statement_year():
+    history = upsert_statement(
+        [],
+        "statement.pdf",
+        "Account activity",
+        [{"date": "06/01", "balance": 100.0}],
+        year=2025,
+    )
+
+    assert history[0]["year"] == 2025

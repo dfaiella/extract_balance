@@ -112,7 +112,13 @@ def append_activity_log(message: str, log_path: str | Path | None = None) -> Pat
     return log_target
 
 
-def upsert_statement(history: List[Dict[str, Any]], filename: str, description: str, records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def upsert_statement(
+    history: List[Dict[str, Any]],
+    filename: str,
+    description: str,
+    records: List[Dict[str, Any]],
+    year: int | None = None,
+) -> List[Dict[str, Any]]:
     normalized_records = []
     seen = set()
     for record in records:
@@ -138,7 +144,16 @@ def upsert_statement(history: List[Dict[str, Any]], filename: str, description: 
             entry["records"] = normalized_records
             entry["filename"] = filename
             entry["description"] = description
+            if year is not None:
+                entry["year"] = year
             return history
 
-    history.append({"filename": filename, "description": description, "records": normalized_records})
+    entry = {
+        "filename": filename,
+        "description": description,
+        "records": normalized_records,
+    }
+    if year is not None:
+        entry["year"] = year
+    history.append(entry)
     return history

@@ -9,7 +9,11 @@ A small offline desktop app for loading account statement PDFs, extracting date/
 - Extracts simple date/balance rows from the PDF text.
 - Saves rows as JSON for later use.
 - Keeps a backup copy of the history JSON and a simple activity log in the user data folder.
-- Displays a simple bar chart of date vs balance.
+- Prominently displays the average daily end-of-day balance for the month.
+- Shows each day's end-of-day balance and month-to-date rolling average in a
+  table, with the rolling average drawn over the daily balance bar chart. The
+  last transaction on a date is its closing balance, and days without
+  transactions use the next available account balance.
 
 ## Quick start
 

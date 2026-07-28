@@ -1,17 +1,25 @@
 import os
 import sys
+from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Any
 
 from PySide6 import QtWidgets, QtCore, QtGui
 
 from .chart import BalanceChartCanvas
+from .monthly import daily_balance_series, monthly_average_balances, statement_year, year_from_description
 from .pdf_tools import extract_description_from_text, extract_rows_from_text, read_pdf_text
 from .storage import append_activity_log, copy_imported_pdf, get_activity_log_path, get_backup_dir, get_history_path, load_statement_history, save_statement_history, upsert_statement
 
 
 def sort_records_by_date(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return sorted(rows, key=lambda row: str(row.get("date", "")), reverse=True)
+
+
+def format_currency(value: float | int | str) -> str:
+    amount = float(value)
+    sign = "-" if amount < 0 else ""
+    return f"{sign}${abs(amount):,.2f}"
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -39,12 +47,50 @@ class MainWindow(QtWidgets.QMainWindow):
         top_row.addWidget(self.load_button)
         layout.addLayout(top_row)
 
-        self.table = QtWidgets.QTableWidget(0, 2)
-        self.table.setHorizontalHeaderLabels(["Date", "Balance"])
-        layout.addWidget(self.table)
+        self.tabs = QtWidgets.QTabWidget()
+        layout.addWidget(self.tabs)
 
-        self.chart_view = BalanceChartCanvas(self)
-        layout.addWidget(self.chart_view)
+        averages_tab = QtWidgets.QWidget()
+        averages_layout = QtWidgets.QVBoxLayout(averages_tab)
+        self.tabs.addTab(averages_tab, "Daily & Monthly Average")
+
+        self.average_label = QtWidgets.QLabel()
+        self.average_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        average_font = self.average_label.font()
+        average_font.setPointSize(18)
+        average_font.setBold(True)
+        self.average_label.setFont(average_font)
+        self.average_label.setWordWrap(True)
+        averages_layout.addWidget(self.average_label)
+
+        self.table = QtWidgets.QTableWidget(0, 3)
+        self.table.setHorizontalHeaderLabels(
+            ["Date", "End-of-day balance", "Rolling average"]
+        )
+        table_header = self.table.horizontalHeader()
+        table_header.setSectionResizeMode(
+            QtWidgets.QHeaderView.ResizeMode.ResizeToContents
+        )
+        averages_layout.addWidget(self.table)
+
+        self.chart_view = BalanceChartCanvas(averages_tab)
+        averages_layout.addWidget(self.chart_view)
+
+        transactions_tab = QtWidgets.QWidget()
+        transactions_layout = QtWidgets.QVBoxLayout(transactions_tab)
+        self.tabs.addTab(transactions_tab, "All Transactions")
+
+        self.transactions_table = QtWidgets.QTableWidget(0, 4)
+        self.transactions_table.setHorizontalHeaderLabels(
+            ["Date", "Transaction amount", "Account balance", "Transaction details"]
+        )
+        self.transactions_table.horizontalHeader().setSectionResizeMode(
+            QtWidgets.QHeaderView.ResizeMode.ResizeToContents
+        )
+        transactions_layout.addWidget(self.transactions_table)
+
+        self.transactions_chart = BalanceChartCanvas(transactions_tab)
+        transactions_layout.addWidget(self.transactions_chart)
 
         nav_row = QtWidgets.QHBoxLayout()
         self.prev_button = QtWidgets.QPushButton("Previous")
@@ -93,8 +139,10 @@ class MainWindow(QtWidgets.QMainWindow):
             self.show_period(self.current_period_index)
         else:
             self.records = []
+            self.average_label.setText("No monthly average available")
             self._render_table(self.records)
             self._render_chart(self.records)
+            self._render_transactions([])
             self.status.showMessage("No saved statements yet")
 
     def choose_file(self) -> None:
@@ -164,10 +212,23 @@ class MainWindow(QtWidgets.QMainWindow):
 
         try:
             imported_copy = copy_imported_pdf(path)
-            self.history = upsert_statement(self.history, path.name, description, [
-                {"date": row["date"], "balance": row["balance"], "filename": path.name, "description": description}
-                for row in rows
-            ])
+            self.history = upsert_statement(
+                self.history,
+                path.name,
+                description,
+                [
+                    {
+                        "date": row["date"],
+                        "balance": row["balance"],
+                        "amount": row.get("amount"),
+                        "details": row.get("details", ""),
+                        "filename": path.name,
+                        "description": description,
+                    }
+                    for row in rows
+                ],
+                year=year_from_description(text),
+            )
             self.current_period_index = len(self.history) - 1
             self._persist_history()
             append_activity_log(f"Imported PDF: {path.name}", get_activity_log_path())
@@ -184,9 +245,33 @@ class MainWindow(QtWidgets.QMainWindow):
             return
         entry = self.history[index]
         self.records = sort_records_by_date(entry.get("records", []))
-        self._render_table(self.records)
-        self._render_chart(self.records)
-        self.status.showMessage(f"{entry.get('description', entry.get('filename', 'Unknown'))} ({len(self.records)} rows)")
+        resolved_year = statement_year(entry, datetime.now().year)
+        averages = monthly_average_balances(
+            entry.get("records", []),
+            default_year=resolved_year,
+        )
+        daily_rows = daily_balance_series(
+            entry.get("records", []),
+            default_year=resolved_year,
+        )
+        if averages:
+            summary = averages[-1]
+            month_name = datetime.strptime(
+                str(summary["month"]), "%Y-%m"
+            ).strftime("%B %Y")
+            self.average_label.setText(
+                f"Average Account Balance for {month_name}:\n"
+                f"${float(summary['balance']):,.2f}"
+            )
+        else:
+            self.average_label.setText("Average account balance unavailable")
+        self._render_table(list(reversed(daily_rows)))
+        self._render_chart(daily_rows)
+        self._render_transactions(entry.get("records", []))
+        self.status.showMessage(
+            f"{entry.get('description', entry.get('filename', 'Unknown'))} "
+            f"({len(self.records)} transactions, {len(averages)} months)"
+        )
         self.current_period_index = index
 
     def show_previous_period(self) -> None:
@@ -213,11 +298,63 @@ class MainWindow(QtWidgets.QMainWindow):
     def _render_table(self, rows: List[Dict[str, float | str]]) -> None:
         self.table.setRowCount(len(rows))
         for row_index, row in enumerate(rows):
-            self.table.setItem(row_index, 0, QtWidgets.QTableWidgetItem(str(row["date"])))
-            self.table.setItem(row_index, 1, QtWidgets.QTableWidgetItem(f"{float(row['balance']):.2f}"))
+            self.table.setItem(
+                row_index,
+                0,
+                QtWidgets.QTableWidgetItem(str(row.get("month", row.get("date", "")))),
+            )
+
+            self.table.setItem(
+                row_index,
+                1,
+                QtWidgets.QTableWidgetItem(format_currency(row["balance"])),
+            )
+            rolling_average = row.get("rolling_average")
+            self.table.setItem(
+                row_index,
+                2,
+                QtWidgets.QTableWidgetItem(
+                    format_currency(rolling_average)
+                    if rolling_average is not None
+                    else ""
+                ),
+            )
+
+    def closeEvent(self, event: QtGui.QCloseEvent) -> None:
+        if self.history:
+            self._persist_history()
+        event.accept()
 
     def _render_chart(self, rows: List[Dict[str, float | str]]) -> None:
         self.chart_view.render_records(rows)
+
+    def _render_transactions(self, rows: List[Dict[str, Any]]) -> None:
+        newest_first = sort_records_by_date(rows)
+        self.transactions_table.setRowCount(len(newest_first))
+        for row_index, row in enumerate(newest_first):
+            self.transactions_table.setItem(
+                row_index, 0, QtWidgets.QTableWidgetItem(str(row.get("date", "")))
+            )
+            self.transactions_table.setItem(
+                row_index,
+                1,
+                QtWidgets.QTableWidgetItem(
+                    format_currency(row["amount"])
+                    if row.get("amount") is not None
+                    else ""
+                ),
+            )
+            self.transactions_table.setItem(
+                row_index,
+                2,
+                QtWidgets.QTableWidgetItem(format_currency(row["balance"])),
+            )
+            self.transactions_table.setItem(
+                row_index,
+                3,
+                QtWidgets.QTableWidgetItem(str(row.get("details", ""))),
+            )
+        self.transactions_chart.render_transactions(rows)
 
     def _install_drop_handlers(self, widget: QtWidgets.QWidget) -> None:
         widget.setAcceptDrops(True)

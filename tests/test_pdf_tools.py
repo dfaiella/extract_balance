@@ -16,6 +16,8 @@ def test_extract_rows_from_text():
 
     assert rows[0]["date"] == "2024-01-01"
     assert rows[0]["balance"] == 1234.56
+    assert rows[0]["details"] == "Balance"
+    assert rows[0]["amount"] is None
     assert rows[1]["balance"] == 1250.0
     assert rows[0]["date"] <= rows[1]["date"]
 
@@ -29,8 +31,25 @@ def test_extract_rows_from_transaction_style_text():
 
     assert rows[0]["date"] == "06/01"
     assert rows[0]["balance"] == 5.0
+    assert rows[0]["details"] == "ID 01 REGULAR SHARE Balance Forward"
     assert rows[1]["date"] == "06/30"
     assert rows[1]["balance"] == 5.0
+    assert rows[1]["details"] == "Ending Balance"
+
+
+def test_extracts_transaction_amount_separately_from_trimmed_details():
+    text = "06/02 ACH PAYMENT TO MERCHANT   -25.00   475.00   "
+
+    rows = extract_rows_from_text(text)
+
+    assert rows == [
+        {
+            "date": "06/02",
+            "amount": -25.0,
+            "balance": 475.0,
+            "details": "ACH PAYMENT TO MERCHANT",
+        }
+    ]
 
 
 def test_save_and_load_records(tmp_path: Path):
