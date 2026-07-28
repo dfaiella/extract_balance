@@ -130,5 +130,10 @@ That release artifact is what users should install; a local development build no
 ## 6. Helpful notes for first-time use
 
 - The app stores its JSON history and backup files in your home folder under `.account_balance_viewer`.
+- Imported statements are saved immediately, saved again at shutdown, and
+  loaded automatically the next time the app starts.
 - Every time the history is saved, the app also writes a simple line to `activity.log` so you can track what changed.
 - Drag and drop a PDF file onto the window, or use the Load PDF button.
+- Use **Daily & Monthly Average** for the monthly summary, daily balances, and
+  rolling-average chart. Use **All Transactions** to see every transaction's
+  date, amount, resulting account balance, details, and chart bar.

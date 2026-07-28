@@ -1,5 +1,5 @@
 from extract_account_balance import extract_balance
-from extract_account_balance.app import sort_records_by_date
+from extract_account_balance.app import format_currency, sort_records_by_date
 
 
 def test_extracts_balance_from_text():
@@ -20,3 +20,8 @@ def test_sort_records_by_date_newest_first():
     sorted_rows = sort_records_by_date(rows)
 
     assert [row["date"] for row in sorted_rows] == ["2024-02-01", "2024-01-01"]
+
+
+def test_format_currency_uses_symbol_commas_and_negative_sign():
+    assert format_currency(1234.5) == "$1,234.50"
+    assert format_currency(-25) == "-$25.00"

@@ -1,19 +1,52 @@
 # extract_account_balance
 
-A small offline desktop app for loading account statement PDFs, extracting date/balance rows, storing them as JSON, and displaying them in a simple chart.
+A small offline desktop app for loading account statement PDFs, calculating
+daily and monthly account balances, and retaining transaction history between
+runs.
 
 ## Features
 
 - Drag and drop a PDF file into the window or use the button to browse.
 - Reads PDF text with an offline reader backend that prefers PyMuPDF and falls back to pypdf.
-- Extracts simple date/balance rows from the PDF text.
-- Saves rows as JSON for later use.
+- Extracts transaction dates, amounts, details, and resulting account balances
+  from supported PDF rows.
+- Saves imported statements as JSON and loads them again when the app starts.
 - Keeps a backup copy of the history JSON and a simple activity log in the user data folder.
-- Prominently displays the average daily end-of-day balance for the month.
-- Shows each day's end-of-day balance and month-to-date rolling average in a
-  table, with the rolling average drawn over the daily balance bar chart. The
-  last transaction on a date is its closing balance, and days without
-  transactions use the next available account balance.
+- The **Daily & Monthly Average** tab prominently displays the monthly average,
+  lists newest days first, and plots daily balances with a rolling-average
+  line.
+- The **All Transactions** tab lists every extracted transaction, including
+  same-day transactions, and plots every account balance in a bar chart.
+- Money in tables and chart axes is formatted as currency.
+
+## Monthly balance calculation
+
+The app calculates the monthly average as:
+
+```text
+sum of each day's end-of-day account balance / number of days in the month
+```
+
+- When a date has multiple transactions, the last transaction is its
+  end-of-day balance.
+- A date with no transactions uses the next available account balance.
+- If no later balance exists, the latest known balance is carried through the
+  end of the month.
+- Calendar month length is used, including February 29 in leap years.
+
+## Saved data
+
+An import is saved immediately, and history is saved again when the app closes.
+The next launch automatically reloads the most recently viewed statement
+history. Imported PDF copies, JSON history, backups, and the activity log are
+kept in the application data directory:
+
+- Windows: `%LOCALAPPDATA%\AccountBalanceViewer`
+- macOS/Linux: `~/.account_balance_viewer`
+
+The **Data** menu can open the data folder, transaction-history JSON, or
+activity log. Re-import an older statement if it was saved before transaction
+amounts and details were supported.
 
 ## Quick start
 
